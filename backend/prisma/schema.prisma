@@ -1,0 +1,82 @@
+// Section 8½ — Threat Correlation Engine
+// Prisma schema — Bloco 1 (Ingestion layer)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// A monitored entity in the system (an android, a cyberbrain, a terminal, etc).
+// Not necessarily created explicitly — it gets upserted the first time
+// an event references it.
+model Entity {
+  id        String   @id @default(cuid())
+  externalId String  @unique // the entity_id sent by sensors
+  label     String?          // human-friendly name, optional
+  type      String?          // e.g. "android", "cyberbrain", "terminal"
+  location  String?          // last known location
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events     RawEvent[]
+  incidents  Incident[]
+
+  @@map("entities")
+}
+
+// Raw event as received from a sensor, before/after correlation.
+// This is the audit log — every event that hits the webhook lands here,
+// regardless of whether it ends up triggering an incident.
+model RawEvent {
+  id           String   @id @default(cuid())
+  entity       Entity   @relation(fields: [entityId], references: [id])
+  entityId     String
+
+  eventType    String   // e.g. "login_failure", "location_change", "privileged_access_attempt"
+  location     String?
+  severityRaw  Int      // 0-100, as reported by the sensor, unvalidated/uncorrelated
+  occurredAt   DateTime // timestamp reported by the sensor
+  receivedAt   DateTime @default(now()) // timestamp we actually received it
+
+  metadata     Json?    // free-form payload for anything sensor-specific
+
+  incidentId   String?
+  incident     Incident? @relation(fields: [incidentId], references: [id])
+
+  @@index([entityId, occurredAt])
+  @@map("raw_events")
+}
+
+// An incident is what the correlation engine opens once a pattern
+// of raw events for the same entity crosses a threshold within a
+// sliding time window. This model gets fleshed out more in Bloco 2,
+// but the base fields live here so the FK from RawEvent works from day 1.
+model Incident {
+  id           String   @id @default(cuid())
+  entity       Entity   @relation(fields: [entityId], references: [id])
+  entityId     String
+
+  status       IncidentStatus @default(OPEN)
+  severity     Int?           // calculated severity (Bloco 2), not the raw one
+  summary      String?        // AI-generated summary (Bloco 4)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  closedAt     DateTime?
+
+  events       RawEvent[]
+
+  @@index([entityId, status])
+  @@map("incidents")
+}
+
+enum IncidentStatus {
+  OPEN
+  INVESTIGATING
+  CLOSED
+  ESCALATED
+}
