@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { IncidentsGateway } from '../incidents/incidents.gateway';
 import { redisConfig } from '../config/redis.config';
 import { correlationConfig } from '../config/correlation.config';
 import { computeSeverity } from './severity.util';
@@ -37,6 +38,7 @@ export class CorrelationService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly gateway: IncidentsGateway,
   ) {}
 
   async onModuleInit() {
@@ -190,13 +192,22 @@ export class CorrelationService implements OnModuleInit, OnModuleDestroy {
           data: { incidentId: openIncident.id },
         });
       }
+      const updatedSeverity = Math.max(severity, openIncident.severity ?? 0);
       await this.prisma.incident.update({
         where: { id: openIncident.id },
-        data: { severity: Math.max(severity, openIncident.severity ?? 0) },
+        data: { severity: updatedSeverity },
       });
       this.logger.log(
         `Fed incident ${openIncident.id} with ${unlinkedIds.length} more event(s) for ${entityExternalId}`,
       );
+
+      // Existing incident got more suspicious activity linked to it —
+      // notify the dashboard so severity/badge updates without a refetch.
+      this.gateway.emitIncidentUpdated({
+        id: openIncident.id,
+        severity: updatedSeverity,
+        newEventCount: unlinkedIds.length,
+      });
     } else {
       const incident = await this.prisma.incident.create({
         data: {
@@ -205,10 +216,13 @@ export class CorrelationService implements OnModuleInit, OnModuleDestroy {
           severity,
           events: { connect: unlinkedIds.map((id: string) => ({ id })) },
         },
+        include: { entity: true },
       });
       this.logger.warn(
         `Incident opened: ${incident.id} for entity ${entityExternalId} (severity ${severity}, ${unlinkedIds.length} events)`,
       );
+
+      this.gateway.emitIncidentCreated(incident);
     }
   }
 
