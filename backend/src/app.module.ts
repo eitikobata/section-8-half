@@ -4,6 +4,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { EventsModule } from './events/events.module';
 import { CorrelationModule } from './correlation/correlation.module';
+import { IncidentsModule } from './incidents/incidents.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { CorrelationModule } from './correlation/correlation.module';
     RedisModule,
     EventsModule,
     CorrelationModule,
+    IncidentsModule,
   ],
 })
 export class AppModule {}
