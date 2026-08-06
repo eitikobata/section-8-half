@@ -69,9 +69,26 @@ model Incident {
   closedAt     DateTime?
 
   events       RawEvent[]
+  comments     IncidentComment[]
 
   @@index([entityId, status])
   @@map("incidents")
+}
+
+// Analyst comment on an incident (Bloco 3 action).
+// `author` is free text for now — there's no auth/analyst identity
+// system yet, so this just records whatever the client sends.
+model IncidentComment {
+  id         String   @id @default(cuid())
+  incident   Incident @relation(fields: [incidentId], references: [id])
+  incidentId String
+
+  author     String
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([incidentId])
+  @@map("incident_comments")
 }
 
 enum IncidentStatus {
