@@ -4,15 +4,25 @@ Simplified SIEM replica. Threat correlation dashboard inspired by *Ghost in
 the Shell*'s Public Security Section 9 — renamed to avoid any copyright
 overlap.
 
-## Status: Bloco 1 — Setup + Ingestion ✅
+## Status
+
+- Bloco 1 — Setup + Ingestion ✅
+- Bloco 2 — Correlation Engine ✅ (`docs/bloco2-correlation.md`)
+- Bloco 3 — Real-time (WebSocket) + incidents REST ✅ (`docs/bloco3-realtime.md`)
 
 What's implemented:
 - NestJS project structure
-- PostgreSQL + Prisma schema (`Entity`, `RawEvent`, `Incident`)
+- PostgreSQL + Prisma schema (`Entity`, `RawEvent`, `Incident`, `IncidentComment`)
 - Redis Streams connection + publish helper
 - `POST /events` webhook (validated with DTO + class-validator)
 - Entity upsert + raw event persistence
 - Sensor simulator script (normal traffic + deliberate suspicious sequences)
+- Redis Stream consumer group correlating events into incidents (sliding
+  window per entity, calculated severity)
+- `IncidentsGateway` (WebSocket) emitting `incident.created`,
+  `incident.updated`, `incident.comment`
+- `/incidents` REST: list (paginated, filterable), detail, analyst actions
+  (investigate/close/escalate, comment)
 
 ## Getting started
 
@@ -53,9 +63,9 @@ Once running, `POST http://localhost:3000/events` accepts:
 Every accepted event is persisted to Postgres (audit trail) and published to
 the `events:stream` Redis Stream, ready for the correlation worker (Bloco 2).
 
-## Next up: Bloco 2 — Correlation Engine
+## Next up: Bloco 4 — AI integration
 
-- Redis Stream consumer (worker)
-- Sliding time window per entity
-- Rule-based incident creation
-- Calculated severity (vs raw)
+- Gemini/Claude API for incident summary + severity suggestion
+- AI-suggested engagement protocol / agent / rules of engagement
+  (stored separately from the analyst's final decision)
+  
