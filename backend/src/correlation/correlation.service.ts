@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { IncidentsGateway } from '../incidents/incidents.gateway';
+import { AiService } from '../ai/ai.service';
 import { redisConfig } from '../config/redis.config';
 import { correlationConfig } from '../config/correlation.config';
 import { computeSeverity } from './severity.util';
@@ -39,6 +40,7 @@ export class CorrelationService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly gateway: IncidentsGateway,
+    private readonly ai: AiService,
   ) {}
 
   async onModuleInit() {
@@ -223,6 +225,9 @@ export class CorrelationService implements OnModuleInit, OnModuleDestroy {
       );
 
       this.gateway.emitIncidentCreated(incident);
+
+      // Trigger AI analysis in background (Bloco 4, fire-and-forget)
+      void this.ai.generateSuggestion(incident.id);
     }
   }
 

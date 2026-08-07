@@ -6,6 +6,7 @@ import { EventsModule } from './events/events.module';
 import { CorrelationModule } from './correlation/correlation.module';
 import { IncidentsModule } from './incidents/incidents.module';
 import { AuthModule } from './auth/auth.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { AuthModule } from './auth/auth.module';
     CorrelationModule,
     IncidentsModule,
     AuthModule,
+    AiModule,
   ],
 })
 export class AppModule {}
