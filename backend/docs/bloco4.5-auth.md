@@ -85,7 +85,7 @@ auto-fill do login no Bloco 5 (frontend), mesmo padrão do
 6. Rota protegida (deve dar 401 sem o header):
    ```bash
    curl http://localhost:3000/incidents \
-     -H "Authorization: Bearer <accessToken>"
+     -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbXNqYmFpY3YwMDAwcDVmcnkybzg0OHp1IiwidXNlcm5hbWUiOiJhbmFseXN0LWRlbW8iLCJyb2xlIjoiQU5BTFlTVCIsImlhdCI6MTc4NjEzMDk4MCwiZXhwIjoxNzg2MTMxODgwfQ.o10IYSDTaf5EwmQVMoi6NMl5LEH9yFrEpbiCkT0ywI8"
    ```
 7. Refresh (o `refreshToken` usado aqui fica revogado, um par novo
    volta na resposta):
