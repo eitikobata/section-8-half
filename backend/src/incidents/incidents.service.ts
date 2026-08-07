@@ -83,15 +83,16 @@ export class IncidentsService {
     return updated;
   }
 
-  async addComment(id: string, dto: CreateCommentDto) {
+  async addComment(id: string, dto: CreateCommentDto, authorId: string) {
     await this.getOrThrow(id);
 
     const comment = await this.prisma.incidentComment.create({
       data: {
         incidentId: id,
-        author: dto.author,
+        authorId,
         body: dto.body,
       },
+      include: { author: { select: { id: true, username: true } } },
     });
 
     this.gateway.emitIncidentComment(comment);

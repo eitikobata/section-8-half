@@ -1,8 +1,27 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { Request } from 'express';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { IncidentsService } from './incidents.service';
 import { ListIncidentsDto } from './dto/list-incidents.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
 
+interface AuthenticatedRequest extends Request {
+  user: { id: string; username: string; role: string };
+}
+
+// Every route here requires a valid access token (Bloco 4.5) — incidents
+// are analyst-facing data, there's no anonymous read access.
+@UseGuards(JwtAuthGuard)
 @Controller('incidents')
 export class IncidentsController {
   constructor(private readonly incidentsService: IncidentsService) {}
@@ -35,7 +54,11 @@ export class IncidentsController {
   }
 
   @Post(':id/comments')
-  comment(@Param('id') id: string, @Body() dto: CreateCommentDto) {
-    return this.incidentsService.addComment(id, dto);
+  comment(
+    @Param('id') id: string,
+    @Body() dto: CreateCommentDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.incidentsService.addComment(id, dto, req.user.id);
   }
 }

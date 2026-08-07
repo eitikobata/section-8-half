@@ -5,6 +5,7 @@ import { RedisModule } from './redis/redis.module';
 import { EventsModule } from './events/events.module';
 import { CorrelationModule } from './correlation/correlation.module';
 import { IncidentsModule } from './incidents/incidents.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { IncidentsModule } from './incidents/incidents.module';
     EventsModule,
     CorrelationModule,
     IncidentsModule,
+    AuthModule,
   ],
 })
 export class AppModule {}

@@ -1,12 +1,8 @@
 import { IsString, MaxLength, MinLength } from 'class-validator';
 
 export class CreateCommentDto {
-  // Free text for now — no analyst/auth identity system yet.
-  @IsString()
-  @MinLength(1)
-  @MaxLength(120)
-  author: string;
-
+  // author removed (Bloco 4.5) — it now comes from req.user.id,
+  // set by JwtAuthGuard, instead of trusting whatever the client sends.
   @IsString()
   @MinLength(1)
   @MaxLength(2000)
