@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { IncidentsGateway } from './incidents.gateway';
 import { ListIncidentsDto } from './dto/list-incidents.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
+import { RegisterDecisionDto } from './dto/register-decision.dto';
 
 // Which status transitions an analyst action is allowed to make.
 // CLOSED is terminal — reopening isn't a Bloco 3 concern.
@@ -97,6 +98,48 @@ export class IncidentsService {
 
     this.gateway.emitIncidentComment(comment);
     return comment;
+  }
+
+  async registerAnalystDecision(
+    id: string,
+    dto: RegisterDecisionDto,
+  ) {
+    await this.getOrThrow(id);
+
+    const incident = await this.prisma.incident.findUnique({
+      where: { id },
+    });
+
+    const aiSuggestion = incident?.aiAgentSuggestion as Record<string, unknown> | null;
+
+    const decision: Record<string, string | number | boolean | null> = {
+      action: dto.action,
+      timestamp: new Date().toISOString(),
+      agentFinal:
+        dto.agentId ||
+        (aiSuggestion?.agentName as string) ||
+        'unassigned',
+      protocolFinal:
+        dto.protocolOverride ||
+        (aiSuggestion?.protocol as string) ||
+        'STANDARD_RESPONSE',
+      rulesFinal:
+        dto.rulesOverride ||
+        (aiSuggestion?.rulesOfEngagement as string) ||
+        'Follow incident response playbook',
+    };
+
+    const updated = await this.prisma.incident.update({
+      where: { id },
+      data: { analystDecision: decision },
+    });
+
+    this.gateway.emitIncidentAnalysis({
+      id: updated.id,
+      analystDecision: updated.analystDecision,
+    });
+
+    return updated;
   }
 
   private async getOrThrow(id: string) {

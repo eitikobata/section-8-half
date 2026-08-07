@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { IncidentsService } from './incidents.service';
 import { ListIncidentsDto } from './dto/list-incidents.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
+import { RegisterDecisionDto } from './dto/register-decision.dto';
 
 interface AuthenticatedRequest extends Request {
   user: { id: string; username: string; role: string };
@@ -60,5 +61,10 @@ export class IncidentsController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.incidentsService.addComment(id, dto, req.user.id);
+  }
+
+  @Post(':id/decision')
+  decision(@Param('id') id: string, @Body() dto: RegisterDecisionDto) {
+    return this.incidentsService.registerAnalystDecision(id, dto);
   }
 }

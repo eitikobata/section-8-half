@@ -69,4 +69,14 @@ export class IncidentsGateway
   emitIncidentComment(comment: unknown) {
     this.server.emit('incident.comment', comment);
   }
+
+  /**
+   * AI analysis complete (Bloco 4) — summary, suggested severity, and agent
+   * recommendation are now ready. Or analyst decision registered.
+   */
+  emitIncidentAnalysis(
+    patch: { id: string } & Record<string, unknown>,
+  ) {
+    this.server.emit('incident.analysis', patch);
+  }
 }
