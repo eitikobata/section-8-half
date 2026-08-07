@@ -75,15 +75,15 @@ model Incident {
   @@map("incidents")
 }
 
-// Analyst comment on an incident (Bloco 3 action).
-// `author` is free text for now — there's no auth/analyst identity
-// system yet, so this just records whatever the client sends.
+// Analyst comment on an incident. `author` used to be free text before
+// Bloco 4.5 — now it's a FK to the authenticated user who posted it.
 model IncidentComment {
   id         String   @id @default(cuid())
   incident   Incident @relation(fields: [incidentId], references: [id])
   incidentId String
 
-  author     String
+  author     User     @relation(fields: [authorId], references: [id])
+  authorId   String
   body       String
   createdAt  DateTime @default(now())
 
@@ -96,4 +96,44 @@ enum IncidentStatus {
   INVESTIGATING
   CLOSED
   ESCALATED
+}
+
+// Analyst account (Bloco 4.5 — Auth MVP).
+// Single role for now: ANALYST. A real role hierarchy
+// (Operator/Supervisor/Commander) only gets introduced once an actual
+// product flow needs to tell analysts apart — not before.
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  role         UserRole @default(ANALYST)
+  createdAt    DateTime @default(now())
+
+  refreshTokens    RefreshToken[]
+  incidentComments IncidentComment[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  ANALYST
+}
+
+// Refresh tokens are stored hashed (SHA-256) — never the raw token.
+// revokedAt is the whole revocation mechanism: no separate Redis
+// blacklist, this table already gives us a fast unique lookup by hash
+// plus an audit trail of every token ever issued.
+model RefreshToken {
+  id         String    @id @default(cuid())
+  user       User      @relation(fields: [userId], references: [id])
+  userId     String
+
+  tokenHash  String    @unique
+  jti        String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
 }
