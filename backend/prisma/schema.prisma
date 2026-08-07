@@ -1,5 +1,5 @@
 // Section 8½ — Threat Correlation Engine
-// Prisma schema — Bloco 1 (Ingestion layer)
+// Prisma schema — Bloco 1 (Ingestion layer) + Bloco 4 (IA integration)
 
 generator client {
   provider = "prisma-client-js"
@@ -63,6 +63,9 @@ model Incident {
   status       IncidentStatus @default(OPEN)
   severity     Int?           // calculated severity (Bloco 2), not the raw one
   summary      String?        // AI-generated summary (Bloco 4)
+  suggestedSeverity Int?      // AI re-evaluated severity (Bloco 4)
+  aiAgentSuggestion Json?     // {agentId, agentName, specialty, protocol, rulesOfEngagement} (Bloco 4)
+  analystDecision Json?       // {action, agentFinal, protocolFinal, rulesFinal, timestamp} (Bloco 4)
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
