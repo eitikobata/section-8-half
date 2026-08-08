@@ -1,31 +1,56 @@
-# Section 8½ — Frontend (Bloco 5)
+# Section 8½ — Backend
 
-Next.js dashboard for the Threat Correlation Engine. Real-time incident monitoring, AI-assisted response decisions, and analyst workflow.
+NestJS API for the Threat Correlation Engine: event ingestion, correlation
+engine, real-time incident WebSocket, JWT auth, and AI-assisted incident
+analysis.
 
 ## Setup
 
 ```bash
 npm install
-NEXT_PUBLIC_API_URL=http://localhost:3000 npm run dev
+cp .env.example .env
+npx prisma generate
+npx prisma migrate dev
+npm run seed
+npm run start:dev
 ```
+
+Server runs on `http://localhost:3000` by default.
 
 ## Architecture
 
-- **Auth**: JWT access + refresh tokens, auto-refresh 1min before expiry
-- **Real-time**: socket.io-client (WebSocket) for incident updates
-- **State**: TanStack Query (React Query) for API data, Zustand for UI state
-- **Forms**: React Hook Form + Zod validation
-- **Styling**: Tailwind CSS + cyberpunk theme
+- **Ingestion**: `POST /events` webhook → validates payload → upserts
+  Entity → persists RawEvent → publishes to Redis Stream
+- **Correlation**: Redis Streams consumer group, sliding window per
+  entity, auto-opens Incident when suspicious event threshold is hit
+- **Real-time**: `IncidentsGateway` (socket.io) emits new incidents and
+  status updates; REST API for incident history and analyst actions
+- **Auth**: JWT access token (15min, in-memory on client) + rotation-based
+  refresh token (httpOnly cookie, 7-30 days, SHA-256 hashed in Postgres).
+  Reuse detection revokes all sessions if a used refresh token reappears.
+- **AI**: Claude/Gemini integration (with mock fallback) generates incident
+  summaries and suggests response protocol/agent/rules of engagement
 
-## Routes
+## Docs
 
-- `/` — Login screen
-- `/dashboard` — Main incident monitoring dashboard
+Detailed architecture and decision rationale per block:
+- [`docs/bloco2-correlation.md`](docs/bloco2-correlation.md)
+- [`docs/bloco3-realtime.md`](docs/bloco3-realtime.md)
+- [`docs/bloco4-ia.md`](docs/bloco4-ia.md)
+- [`docs/bloco4.5-auth.md`](docs/bloco4.5-auth.md)
 
 ## Environment
 
-```
-NEXT_PUBLIC_API_URL=http://localhost:3000
-NEXT_PUBLIC_WS_URL=ws://localhost:3000
-NEXT_PUBLIC_INCIDENT_DECISION_TIMEOUT_MS=120000
-```
+See [`.env.example`](.env.example) for the full list of variables
+(database, Redis, JWT secrets, AI provider keys, correlation engine
+tuning, rate limiting).
+
+## Scripts
+
+| Command | Description |
+|---|---|
+| `npm run start:dev` | Dev server with watch mode |
+| `npm run build` | Production build (`dist/`) |
+| `npm run start:prod` | Run built production server |
+| `npm run seed` | Seed demo user + sample data |
+| `npx prisma studio` | Web UI for the database |
