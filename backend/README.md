@@ -8,14 +8,15 @@ analysis.
 
 ```bash
 npm install
-cp .env.example .env
 npx prisma generate
 npx prisma migrate dev
 npm run seed
 npm run start:dev
 ```
 
-Server runs on `http://localhost:3000` by default.
+Server runs on `http://localhost:3000` by default. See the root
+[README](../README.md) for the full list of required environment
+variables.
 
 ## Architecture
 
@@ -31,20 +32,6 @@ Server runs on `http://localhost:3000` by default.
 - **AI**: Claude/Gemini integration (with mock fallback) generates incident
   summaries and suggests response protocol/agent/rules of engagement
 
-## Docs
-
-Detailed architecture and decision rationale per block:
-- [`docs/bloco2-correlation.md`](docs/bloco2-correlation.md)
-- [`docs/bloco3-realtime.md`](docs/bloco3-realtime.md)
-- [`docs/bloco4-ia.md`](docs/bloco4-ia.md)
-- [`docs/bloco4.5-auth.md`](docs/bloco4.5-auth.md)
-
-## Environment
-
-See [`.env.example`](.env.example) for the full list of variables
-(database, Redis, JWT secrets, AI provider keys, correlation engine
-tuning, rate limiting).
-
 ## Scripts
 
 | Command | Description |
@@ -53,4 +40,5 @@ tuning, rate limiting).
 | `npm run build` | Production build (`dist/`) |
 | `npm run start:prod` | Run built production server |
 | `npm run seed` | Seed demo user + sample data |
+| `npm run simulator` | Run the sensor event simulator |
 | `npx prisma studio` | Web UI for the database |

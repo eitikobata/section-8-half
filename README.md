@@ -24,6 +24,10 @@ auth, and a fully containerized deployment pipeline end to end.
 5. The analyst reviews the AI's suggestion, can accept or override it, and
    dispatches a response — the decision and the AI's original suggestion
    are stored separately, so nothing is silently overwritten.
+6. The live demo stays fresh on its own: a scheduled job periodically
+   clears simulated event/incident data while a continuously running
+   event simulator repopulates it, so the dashboard never sits empty or
+   grows unbounded.
 
 ---
 
@@ -95,12 +99,11 @@ auth, and a fully containerized deployment pipeline end to end.
   deterministic mock (for tests/demos without burning API credits) via
   a single environment variable, no code changes.
 - **Fully containerized**: multi-stage Docker builds for both apps,
-  docker-compose for local dev, and a dedicated EasyPanel-ready compose
-  file for production against a shared Postgres instance.
-- **Self-healing demo data**: a scheduled n8n workflow wipes simulated
-  event/incident data periodically while a 24/7 simulator service
-  organically repopulates it — so the live demo never goes stale or
-  grows unbounded.
+  docker-compose for local dev, and a dedicated EasyPanel-ready
+  configuration for production.
+- **Self-healing demo data**: scheduled reset paired with a continuously
+  running event simulator keeps the live demo populated with fresh,
+  realistic activity indefinitely.
 
 ---
 
@@ -130,8 +133,8 @@ A few choices worth being able to explain out loud:
   "we'll actually notice."
 - **A Postgres table for refresh token revocation instead of a Redis
   blacklist** — for this scale, one fewer moving part beats the extra
-  performance a separate blacklist would buy. Documented as an explicit
-  MVP trade-off, not an oversight.
+  performance a separate blacklist would buy. An explicit MVP
+  trade-off, not an oversight.
 - **AI-generated suggestion and analyst decision stored as two separate
   fields**, never merged — losing the AI's original suggestion the
   moment an analyst edits it would make it impossible to later measure
@@ -145,9 +148,6 @@ A few choices worth being able to explain out loud:
 - No horizontal scaling story for the correlation engine yet (single
   consumer per group) — fine at demo scale, would need partitioning
   work for production-grade throughput.
-- Demo Redis/Postgres instances are shared across the author's other
-  projects on the same VPS, not dedicated — a deliberate cost trade-off
-  for a portfolio project, not how this would be run for a real client.
 
 ---
 
@@ -162,16 +162,17 @@ A few choices worth being able to explain out loud:
 | Auth | JWT (access + rotating refresh), bcrypt, httpOnly cookies |
 | AI | Google Gemini (primary), Anthropic Claude (alternative), mock provider |
 | Frontend | Next.js (App Router), TypeScript, Tailwind CSS, TanStack Query, Zustand |
-| Infra | Docker (multi-stage builds), EasyPanel, n8n (scheduled self-heal) |
+| Infra | Docker (multi-stage builds), EasyPanel, scheduled self-heal |
 
 ---
 
 ## Running locally
 
+Requires Docker and Docker Compose.
+
 ```bash
 git clone https://github.com/eitikobata/section-8-half.git
 cd section-8-half
-cp .env.example .env
 docker-compose up -d --build
 docker-compose exec backend npx prisma migrate deploy
 docker-compose exec backend npm run seed
@@ -181,8 +182,18 @@ docker-compose exec backend npm run seed
 - Backend: http://localhost:3000
 - Demo login: `analyst-demo` / `demo12345`
 
-Full deployment guide (Docker, EasyPanel, troubleshooting) is in
-[`docs/bloco6-deploy.md`](docs/bloco6-deploy.md).
+Minimum environment variables (set in your shell or a local `.env` file
+next to `docker-compose.yml`):
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | Redis connection |
+| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | Auth token signing (use `openssl rand -hex 32`) |
+| `AI_PROVIDER` | `gemini`, `claude`, or `mock` |
+| `GEMINI_API_KEY` / `CLAUDE_API_KEY` | Key for whichever provider is selected |
+| `FRONTEND_URL` | Must match the frontend's real origin exactly (cookie scoping) |
+| `NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_WS_URL` | Backend URL, as seen by the browser |
 
 ---
 
@@ -192,31 +203,13 @@ Full deployment guide (Docker, EasyPanel, troubleshooting) is in
 section-8-half/
 ├── backend/          # NestJS API — ingestion, correlation, auth, AI, WebSocket
 │   ├── src/
-│   ├── prisma/        # schema + migrations
-│   └── docs/           # per-block architecture docs
+│   └── prisma/         # schema + migrations
 ├── frontend/          # Next.js analyst dashboard
 │   └── src/
-├── docs/               # deployment guide, cleanup log
 ├── Dockerfile.backend
 ├── Dockerfile.frontend
 └── docker-compose.yml
 ```
-
-Per-block architecture docs (correlation logic, WebSocket design, auth
-model, AI integration) live in [`backend/docs/`](backend/docs/).
-
----
-
-## Roadmap
-
-- [x] Bloco 1 — Ingestion (Redis Streams pipeline, sensor simulator)
-- [x] Bloco 2 — Correlation engine (sliding window, auto-incident creation)
-- [x] Bloco 3 — Real-time layer (WebSocket, incident REST API)
-- [x] Bloco 4 — AI integration (summary + response suggestion)
-- [x] Bloco 4.5 — Auth (JWT + rotating refresh, hardening)
-- [x] Bloco 5 — Frontend (Next.js analyst dashboard)
-- [x] Bloco 6 — Deploy (Docker, EasyPanel)
-- [ ] Bloco 7 — Self-heal (scheduled reset done; always-on simulator service pending)
 
 ---
 
