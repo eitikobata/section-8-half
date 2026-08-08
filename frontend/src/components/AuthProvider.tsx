@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, ReactNode, useEffect, useState } from 'react';
-import { authAPI, setTokens, clearTokens, getAccessToken, getRefreshToken } from '@/lib/api';
+import { authAPI, setAccessToken, clearAccessToken, getAccessToken } from '@/lib/api';
 import { User, LoginRequest, AuthResponse } from '@/lib/types';
 
 export interface AuthContextType {
@@ -20,36 +20,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Restore session from localStorage on mount
+  // Silent refresh on mount: the access token lives in memory only, so
+  // it's gone after any page reload. The httpOnly refresh cookie
+  // survives reloads (that's the point), so we use it here to quietly
+  // re-establish a session without the user having to log in again —
+  // same UX as before, just without anything sitting in localStorage.
   useEffect(() => {
-    const token = getAccessToken();
-    if (token) {
-      // Decode JWT to get user info (for MVP, we store user in login response)
-      // In a real app, you'd verify with /auth/me endpoint
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setUser({
-          id: payload.sub,
-          username: payload.username,
-          role: payload.role,
-        });
-      } catch {
-        clearTokens();
-      }
-    }
-    setIsLoading(false);
+    authAPI
+      .refresh()
+      .then((response) => {
+        setAccessToken(response.data.accessToken);
+        setUser(response.data.user);
+      })
+      .catch(() => {
+        // No valid cookie (never logged in, or it expired) — that's a
+        // normal, silent "logged out" state, not an error to surface.
+        clearAccessToken();
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
-  // Auto-refresh token 1 min before expiry (access token is 15min)
+  // Auto-refresh token 1 min before expiry (access token is 15min).
   useEffect(() => {
-    if (!user || !getRefreshToken()) return;
+    if (!user) return;
 
     const timer = setInterval(async () => {
       try {
-        const response = await authAPI.refresh({ refreshToken: getRefreshToken()! });
-        setTokens(response.data.accessToken, response.data.refreshToken);
+        const response = await authAPI.refresh();
+        setAccessToken(response.data.accessToken);
       } catch {
-        clearTokens();
+        clearAccessToken();
         setUser(null);
       }
     }, 14 * 60 * 1000); // 14 minutes
@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       const response = await authAPI.login(req);
-      setTokens(response.data.accessToken, response.data.refreshToken);
+      setAccessToken(response.data.accessToken);
       setUser(response.data.user);
       return response.data;
     } catch (err: any) {
@@ -77,12 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     setIsLoading(true);
     try {
-      const token = getRefreshToken();
-      if (token) {
-        await authAPI.logout({ refreshToken: token });
-      }
+      await authAPI.logout();
     } finally {
-      clearTokens();
+      clearAccessToken();
       setUser(null);
       setIsLoading(false);
     }
