@@ -40,7 +40,15 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as any;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Guard against refreshing a refresh call: if /auth/refresh itself
+    // 401s, there's no cookie to recover from, and retrying it here
+    // used to double the request and, on failure, hard-redirect to
+    // '/' — which reloads the page, remounts AuthProvider, which
+    // calls /auth/refresh on mount again, 401s again, and so on.
+    // That loop was firing fast enough to trip the rate limiter (429).
+    const isRefreshCall = originalRequest?.url?.includes('/auth/refresh');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isRefreshCall) {
       originalRequest._retry = true;
 
       try {
@@ -58,9 +66,11 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch {
         // Refresh failed — the cookie is gone/expired/invalid. Clear
-        // in-memory state and send the user back to login.
+        // in-memory state and send the user back to login, but only
+        // if we're not already there (avoids reloading '/' onto
+        // itself in a loop).
         clearAccessToken();
-        if (typeof window !== 'undefined') {
+        if (typeof window !== 'undefined' && window.location.pathname !== '/') {
           window.location.href = '/';
         }
       }
