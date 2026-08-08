@@ -39,9 +39,14 @@ export class IncidentsController {
     return this.incidentsService.findOne(id);
   }
 
+  // Manual escape hatch: TRIAGED normally happens automatically once the
+  // AI finishes analysis (see AiService.generateSuggestion). This route
+  // stays available for the rare case where AI analysis never completes
+  // (misconfigured provider, timeout) and an analyst needs to push the
+  // incident forward by hand. Not wired to a button in the current UI.
   @Patch(':id/investigate')
   investigate(@Param('id') id: string) {
-    return this.incidentsService.changeStatus(id, 'INVESTIGATING');
+    return this.incidentsService.changeStatus(id, 'TRIAGED');
   }
 
   @Patch(':id/close')

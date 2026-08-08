@@ -33,7 +33,7 @@ export class IncidentsGateway
   private readonly logger = new Logger(IncidentsGateway.name);
 
   @WebSocketServer()
-  server: Server;
+  server!: Server; 
 
   constructor(private readonly wsJwtGuard: WsJwtGuard) {}
 

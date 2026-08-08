@@ -67,7 +67,11 @@ export class AiService {
         summary,
       );
 
-      // Persist to DB
+      // Persist to DB. Also move NEW -> TRIAGED automatically: finishing
+      // AI analysis IS the triage step, so the analyst shouldn't have to
+      // click a separate button for something the system already did.
+      // Guarded so it's a no-op if the incident already moved past NEW
+      // (e.g. an analyst manually escalated it while analysis was running).
       const updated = await this.prisma.incident.update({
         where: { id: incidentId },
         data: {
@@ -80,6 +84,7 @@ export class AiService {
             protocol: agentSuggestion.protocol,
             rulesOfEngagement: agentSuggestion.rulesOfEngagement,
           } as Record<string, string>,
+          ...(incident.status === 'NEW' ? { status: 'TRIAGED' as const } : {}),
         },
       });
 
@@ -93,6 +98,7 @@ export class AiService {
         summary: updated.summary,
         suggestedSeverity: updated.suggestedSeverity,
         aiAgentSuggestion: updated.aiAgentSuggestion,
+        status: updated.status,
       });
     } catch (error) {
       this.logger.error(

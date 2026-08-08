@@ -1,6 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+import { appConfig } from './config/app.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -16,7 +18,17 @@ async function bootstrap() {
     }),
   );
 
-  app.enableCors();
+  // Needed to read the httpOnly refreshToken cookie off incoming
+  // requests (see AuthController).
+  app.use(cookieParser());
+
+  // Restricted to the actual frontend origin(s), not a wildcard —
+  // required anyway for cookies to work cross-origin: browsers refuse
+  // to send/accept credentialed cookies with Access-Control-Allow-Origin: *.
+  app.enableCors({
+    origin: appConfig.frontendOrigins,
+    credentials: true,
+  });
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);

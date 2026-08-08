@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { randomUUID, createHash } from 'crypto';
 import * as bcrypt from 'bcrypt';
@@ -6,7 +6,6 @@ import { User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { authConfig } from '../config/auth.config';
 import { LoginDto } from './dto/login.dto';
-import { RefreshDto } from './dto/refresh.dto';
 
 interface AccessTokenPayload {
   sub: string;
@@ -16,6 +15,8 @@ interface AccessTokenPayload {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -38,24 +39,56 @@ export class AuthService {
    * new pair (access + refresh) is issued. This limits how long a leaked
    * refresh token stays useful — reusing an already-rotated one fails,
    * since by then it's marked revoked in Postgres.
+   *
+   * Takes the raw token string directly (not a DTO) — AuthController
+   * resolves it from the httpOnly cookie or, failing that, the request
+   * body, before calling this.
    */
-  async refresh(dto: RefreshDto) {
+  async refresh(refreshToken: string | undefined) {
+    if (!refreshToken) {
+      throw new UnauthorizedException('Missing refresh token');
+    }
+
     let payload: { sub: string; jti: string };
     try {
-      payload = this.jwt.verify(dto.refreshToken, {
+      payload = this.jwt.verify(refreshToken, {
         secret: authConfig.refreshTokenSecret,
       });
     } catch {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    const tokenHash = this.hashToken(dto.refreshToken);
+    const tokenHash = this.hashToken(refreshToken);
     const stored = await this.prisma.refreshToken.findUnique({
       where: { tokenHash },
       include: { user: true },
     });
 
-    if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
+    if (!stored) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    // Reuse detection: this exact token was already rotated away once
+    // before. Two ways that happens — (a) a client retried a request
+    // after a slow/dropped response, genuinely benign, or (b) someone
+    // is replaying a stolen refresh token that the legitimate user has
+    // already rotated past. There's no way to tell those apart after
+    // the fact, so the safe move is to treat it as a compromise: kill
+    // every active session for this user, forcing a fresh login
+    // everywhere. Better to inconvenience the real user occasionally
+    // than to let a leaked token keep working silently.
+    if (stored.revokedAt) {
+      this.logger.warn(
+        `Refresh token reuse detected for user ${stored.userId} — revoking all sessions`,
+      );
+      await this.prisma.refreshToken.updateMany({
+        where: { userId: stored.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    if (stored.expiresAt < new Date()) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
@@ -68,7 +101,8 @@ export class AuthService {
   }
 
   /** Revokes a single refresh token (logout from one device/session). */
-  async logout(refreshToken: string) {
+  async logout(refreshToken: string | undefined) {
+    if (!refreshToken) return;
     const tokenHash = this.hashToken(refreshToken);
     await this.prisma.refreshToken.updateMany({
       where: { tokenHash, revokedAt: null },

@@ -182,7 +182,11 @@ export class CorrelationService implements OnModuleInit, OnModuleDestroy {
     const openIncident = await this.prisma.incident.findFirst({
       where: {
         entityId: entity.id,
-        status: { in: ['OPEN', 'INVESTIGATING'] },
+        // Same semantics as before: keep feeding events into any
+        // still-active incident. ESCALATED is deliberately excluded —
+        // once escalated, new suspicious activity opens a fresh
+        // incident rather than piling onto a handed-off one.
+        status: { in: ['NEW', 'TRIAGED', 'RESPONSE_DEPLOYED'] },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -214,7 +218,7 @@ export class CorrelationService implements OnModuleInit, OnModuleDestroy {
       const incident = await this.prisma.incident.create({
         data: {
           entityId: entity.id,
-          status: 'OPEN',
+          status: 'NEW',
           severity,
           events: { connect: unlinkedIds.map((id: string) => ({ id })) },
         },

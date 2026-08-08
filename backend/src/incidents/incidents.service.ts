@@ -10,11 +10,17 @@ import { ListIncidentsDto } from './dto/list-incidents.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { RegisterDecisionDto } from './dto/register-decision.dto';
 
-// Which status transitions an analyst action is allowed to make.
-// CLOSED is terminal — reopening isn't a Bloco 3 concern.
+// Which status transitions an analyst (or the system) is allowed to make.
+// NEW -> TRIAGED happens automatically once the AI finishes analysis
+// (see AiService.generateSuggestion). TRIAGED -> RESPONSE_DEPLOYED happens
+// automatically once the analyst registers a decision (see
+// registerAnalystDecision below). ESCALATED and CLOSED stay manual, and
+// remain reachable from any non-terminal state — an analyst can always
+// escalate or close, even before the AI/decision steps complete.
 const ALLOWED_TRANSITIONS: Record<IncidentStatus, IncidentStatus[]> = {
-  OPEN: ['INVESTIGATING', 'ESCALATED', 'CLOSED'],
-  INVESTIGATING: ['ESCALATED', 'CLOSED'],
+  NEW: ['TRIAGED', 'ESCALATED', 'CLOSED'],
+  TRIAGED: ['RESPONSE_DEPLOYED', 'ESCALATED', 'CLOSED'],
+  RESPONSE_DEPLOYED: ['ESCALATED', 'CLOSED'],
   ESCALATED: ['CLOSED'],
   CLOSED: [],
 };
@@ -104,13 +110,11 @@ export class IncidentsService {
     id: string,
     dto: RegisterDecisionDto,
   ) {
-    await this.getOrThrow(id);
+    // getOrThrow already fetches the incident — reuse it instead of a
+    // second findUnique for the same row.
+    const incident = await this.getOrThrow(id);
 
-    const incident = await this.prisma.incident.findUnique({
-      where: { id },
-    });
-
-    const aiSuggestion = incident?.aiAgentSuggestion as Record<string, unknown> | null;
+    const aiSuggestion = incident.aiAgentSuggestion as Record<string, unknown> | null;
 
     const decision: Record<string, string | number | boolean | null> = {
       action: dto.action,
@@ -129,14 +133,27 @@ export class IncidentsService {
         'Follow incident response playbook',
     };
 
+    // A decision being registered means the response is now deployed —
+    // move the status forward automatically instead of making the
+    // analyst also click a separate status button for the same action.
+    // Guarded by ALLOWED_TRANSITIONS so it's a no-op (silently skipped)
+    // if the incident already moved on (e.g. got escalated in the
+    // meantime) rather than throwing on an invalid transition.
+    const statusUpdate = ALLOWED_TRANSITIONS[incident.status].includes(
+      'RESPONSE_DEPLOYED',
+    )
+      ? { status: 'RESPONSE_DEPLOYED' as IncidentStatus }
+      : {};
+
     const updated = await this.prisma.incident.update({
       where: { id },
-      data: { analystDecision: decision },
+      data: { analystDecision: decision, ...statusUpdate },
     });
 
     this.gateway.emitIncidentAnalysis({
       id: updated.id,
       analystDecision: updated.analystDecision,
+      status: updated.status,
     });
 
     return updated;

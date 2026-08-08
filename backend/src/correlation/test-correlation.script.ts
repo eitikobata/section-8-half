@@ -60,7 +60,7 @@ async function waitForIncident(entityExternalId: string, timeoutMs: number) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const incident = await prisma.incident.findFirst({
-      where: { entity: { externalId: entityExternalId }, status: 'OPEN' },
+      where: { entity: { externalId: entityExternalId }, status: 'NEW' },
       include: { events: true },
     });
     if (incident) return incident;

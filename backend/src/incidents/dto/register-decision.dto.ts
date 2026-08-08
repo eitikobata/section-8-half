@@ -8,7 +8,7 @@ import { IsIn, IsOptional, IsString } from 'class-validator';
  */
 export class RegisterDecisionDto {
   @IsIn(['accept', 'partial', 'reject'])
-  action: 'accept' | 'partial' | 'reject';
+  action!: 'accept' | 'partial' | 'reject';
 
   @IsOptional()
   @IsString()

@@ -15,4 +15,12 @@ export const authConfig = {
   // that lands in Bloco 5 (frontend). Same idea as deep-space-support.
   demoUsername: process.env.DEMO_USER_USERNAME ?? 'analyst-demo',
   demoPassword: process.env.DEMO_USER_PASSWORD ?? 'demo12345',
+
+  // Cookie settings for the refresh token (hardening pass, Bloco 6).
+  // httpOnly means client-side JS can never read it — even if an XSS
+  // bug slipped a malicious script onto the page, it couldn't exfiltrate
+  // this cookie. `secure` should be true in production (HTTPS only);
+  // kept false by default so local http://localhost dev still works.
+  cookieSecure: process.env.COOKIE_SECURE === 'true',
+  cookieDomain: process.env.COOKIE_DOMAIN || undefined,
 };
