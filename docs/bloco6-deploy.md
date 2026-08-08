@@ -381,7 +381,7 @@ section-8-half/
 ├── .env.production.example      # Prod template
 ├── .dockerignore                # Files to exclude from Docker builds
 ├── docker-compose.yml           # Dev/prod compose (primary)
-├── docker-compose.prod.yml      # Prod overrides (optional)
+├── docker-compose.easypanel.yml # EasyPanel deploy (external shared Postgres)
 ├── Dockerfile.backend           # NestJS multi-stage build
 ├── Dockerfile.frontend          # Next.js multi-stage build
 ├── backend/                     # NestJS application
