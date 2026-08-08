@@ -14,6 +14,20 @@ COPY frontend/tsconfig.json frontend/tailwind.config.ts frontend/postcss.config.
 COPY frontend/src ./src
 COPY frontend/public ./public
 
+# NEXT_PUBLIC_* vars get inlined into the JS bundle at build time by
+# `next build` -- setting them as a runtime environment.
+# variable on the container does nothing after the fact, the value is
+# already baked into the static chunks. They must be passed as Docker
+# build args (--build-arg or the platform's "Build Arguments" field,
+# NOT just "Environment Variables") and promoted to ENV here so
+# process.env.NEXT_PUBLIC_* is actually set while `next build` runs.
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_WS_URL
+ARG NEXT_PUBLIC_INCIDENT_DECISION_TIMEOUT_MS=120000
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
+ENV NEXT_PUBLIC_INCIDENT_DECISION_TIMEOUT_MS=$NEXT_PUBLIC_INCIDENT_DECISION_TIMEOUT_MS
+
 RUN npm run build
 
 # ============================================================================
