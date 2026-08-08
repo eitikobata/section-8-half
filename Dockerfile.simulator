@@ -1,0 +1,45 @@
+# ============================================================================
+# Sensor simulator — standalone worker, no HTTP server, no healthcheck.
+# Reuses the same backend source (it imports nothing app-specific beyond
+# axios), but only needs ts-node + the simulator script itself at runtime.
+# ============================================================================
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app/backend
+
+COPY backend/package*.json ./
+RUN npm ci
+
+COPY backend/tsconfig.json ./
+COPY backend/src ./src
+
+RUN npm run build
+
+# ============================================================================
+# Runtime stage
+# ============================================================================
+FROM node:20-alpine
+
+WORKDIR /app/backend
+
+ENV NODE_ENV=production
+
+RUN apk add --no-cache dumb-init
+
+COPY backend/package*.json ./
+RUN npm ci --omit=dev
+
+# Runs via ts-node (see package.json "simulator" script), so the TS
+# source + tsconfig need to be present, not just the compiled dist/.
+COPY --from=builder /app/backend/src ./src
+COPY --from=builder /app/backend/tsconfig.json ./
+
+# No EXPOSE, no HEALTHCHECK: this process doesn't listen on any port --
+# it only makes outbound HTTP calls to the backend's /events webhook.
+# A healthcheck probing a port here would never pass and the
+# orchestrator would kill/replace the container forever, same failure
+# mode already hit and fixed in Dockerfile.backend.
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["npm", "run", "simulator"]
