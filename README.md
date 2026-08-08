@@ -18,9 +18,10 @@ auth, and a fully containerized deployment pipeline end to end.
 3. When enough suspicious events for the same entity land inside that
    window, an **incident opens automatically** and is pushed to every
    connected analyst in real time over **WebSocket**.
-4. An **AI layer** (Gemini, with Claude and a mock provider as swappable
-   alternatives) analyzes the incident and suggests a response protocol,
-   an agent from an original roster, and rules of engagement.
+4. An **AI layer** (provider-agnostic — Gemini, Claude, or a
+   deterministic mock behind a single interface) analyzes the incident and
+   suggests a response protocol, an agent from an original roster, and
+   rules of engagement.
 5. The analyst reviews the AI's suggestion, can accept or override it, and
    dispatches a response — the decision and the AI's original suggestion
    are stored separately, so nothing is silently overwritten.
@@ -61,9 +62,9 @@ auth, and a fully containerized deployment pipeline end to end.
                                         │            │            │      └───────────┘
                                         │            ▼            │
                                         │  ┌────────────────────┐ │
-                                        │  │ AI Layer             │ │
-                                        │  │ (Gemini/Claude/mock,  │ │
-                                        │  │  suggests response)  │ │
+                                        │  │ AI Layer (provider-  │ │
+                                        │  │ agnostic, suggests    │ │
+                                        │  │ response)             │ │
                                         │  └─────────┬──────────┘ │
                                         │            │            │
                                         │            ▼            │
@@ -96,8 +97,13 @@ auth, and a fully containerized deployment pipeline end to end.
   refresh token revokes every session for that user, not just the
   reused one.
 - **AI provider abstraction** — swap between Gemini, Claude, or a
-  deterministic mock (for tests/demos without burning API credits) via
-  a single environment variable, no code changes.
+  deterministic mock via a single environment variable, no code changes.
+  **The live demo deliberately runs on the mock provider**: with the
+  simulator generating suspicious activity continuously, real AI calls
+  would either burn through free-tier rate limits within minutes or
+  start costing money on a project that's meant to run unattended and
+  free. Real Gemini/Claude calls work end to end and are exercised in
+  local development — the demo just isn't the place to prove it.
 - **Fully containerized**: multi-stage Docker builds for both apps,
   docker-compose for local dev, and a dedicated EasyPanel-ready
   configuration for production.
@@ -160,7 +166,7 @@ A few choices worth being able to explain out loud:
 | Event streaming | Redis Streams |
 | Database | PostgreSQL |
 | Auth | JWT (access + rotating refresh), bcrypt, httpOnly cookies |
-| AI | Google Gemini (primary), Anthropic Claude (alternative), mock provider |
+| AI | Google Gemini + Anthropic Claude support, mock provider active in the live demo (see trade-offs above) |
 | Frontend | Next.js (App Router), TypeScript, Tailwind CSS, TanStack Query, Zustand |
 | Infra | Docker (multi-stage builds), EasyPanel, scheduled self-heal |
 
