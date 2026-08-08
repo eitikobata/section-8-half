@@ -45,8 +45,14 @@ COPY --from=builder /app/backend/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/backend/src ./src
 COPY --from=builder /app/backend/tsconfig.json ./
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000', (r) => {if (r.statusCode >= 500) throw new Error(r.statusCode)})"
+# Healthcheck must wait for the response and exit explicitly. The
+# previous version fired an async http.get and let the process exit
+# before the callback ran, so it never actually verified anything and
+# an unhandled socket error could fail it outright -- which left the
+# Swarm task stuck in "Starting" forever, endlessly replacing the
+# container with no error reported.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD node -e "const r=require('http').get('http://127.0.0.1:3000/',res=>{process.exit(res.statusCode<500?0:1)});r.on('error',()=>process.exit(1));r.setTimeout(4000,()=>process.exit(1));"
 
 EXPOSE 3000
 
