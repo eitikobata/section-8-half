@@ -92,7 +92,117 @@ docker-compose exec redis redis-cli
 
 ---
 
-## Production Deployment
+## Production Deployment — EasyPanel (2 separate apps, actual workflow)
+
+This is the deployment path actually used for this project: **backend
+and frontend as two separate EasyPanel apps**, each built from its own
+Dockerfile, with environment variables set directly in the EasyPanel
+UI (not via docker-compose). Postgres is **not** deployed here — it
+reuses an existing shared instance (`tools_postgres-shared`) already
+running on the VPS across multiple projects.
+
+### 1. Create the database (one-time)
+
+Connect to the shared Postgres (via `pgweb`/`dbgate`, already running
+alongside it, or `psql`) and run:
+
+```sql
+CREATE DATABASE section8half;
+```
+
+### 2. Backend app
+
+In EasyPanel: **New App → Build from Dockerfile**, point at this repo,
+Dockerfile path `Dockerfile.backend`, build context = repo root.
+
+Environment variables to set in the EasyPanel UI:
+
+```
+NODE_ENV=production
+PORT=3000
+FRONTEND_URL=https://<your-frontend-domain>
+
+DATABASE_URL=postgresql://postgres:<SHARED_POSTGRES_PASSWORD>@tools_postgres-shared:5432/section8half
+
+REDIS_HOST=<redis-host-or-service-name>
+REDIS_PORT=6379
+REDIS_STREAM_KEY=events:stream
+
+JWT_ACCESS_SECRET=<openssl rand -hex 32>
+JWT_REFRESH_SECRET=<openssl rand -hex 32>
+JWT_ACCESS_TTL=15m
+JWT_REFRESH_TTL_DAYS=7
+COOKIE_SECURE=true
+COOKIE_DOMAIN=.<your-domain>
+
+DEMO_USER_USERNAME=analyst-demo
+DEMO_USER_PASSWORD=<change-this>
+
+AI_PROVIDER=gemini
+GEMINI_API_KEY=<your-key>
+GEMINI_MODEL=gemini-2.0-flash
+AI_TIMEOUT_MS=30000
+AI_DEBUG=false
+
+CORRELATION_WINDOW_MS=60000
+CORRELATION_EVENT_THRESHOLD=3
+CORRELATION_SEVERITY_THRESHOLD=50
+CORRELATION_CONSUMER_GROUP=correlation-engine
+CORRELATION_BLOCK_MS=5000
+CORRELATION_BATCH_COUNT=10
+```
+
+Redis still needs to run somewhere -- either a small dedicated Redis
+app in EasyPanel (same pattern as the shared Postgres, just for this
+project or shared too), or reuse an existing shared Redis if there is
+one. Point `REDIS_HOST` at whatever that ends up being.
+
+**Networking**: since `tools_postgres-shared` is reachable and you're
+deploying through EasyPanel the same way as your other projects,
+service-name resolution across apps is normally handled by EasyPanel's
+own shared network automatically -- no manual Docker network wiring
+needed, unlike a standalone docker-compose file. If the backend can't
+resolve `tools_postgres-shared` once deployed, check EasyPanel's
+network/project settings for how it isolates (or doesn't) apps from
+each other.
+
+After the backend app is up, run migrations and seed once (via
+EasyPanel's shell/terminal for that app, or `docker exec` on the VPS):
+
+```bash
+npx prisma migrate deploy
+npm run seed
+```
+
+### 3. Frontend app
+
+**New App → Build from Dockerfile**, Dockerfile path
+`Dockerfile.frontend`, build context = repo root.
+
+Environment variables:
+
+```
+NODE_ENV=production
+NEXT_PUBLIC_API_URL=https://<your-backend-domain>
+NEXT_PUBLIC_WS_URL=wss://<your-backend-domain>
+NEXT_PUBLIC_INCIDENT_DECISION_TIMEOUT_MS=120000
+```
+
+### 4. Domains & CORS
+
+Set custom domains for both apps in EasyPanel (handles SSL
+automatically). No manual CORS config needed beyond the `FRONTEND_URL`
+var above -- the backend reads it and restricts CORS to exactly that
+origin (see `src/config/app.config.ts` / `main.ts`).
+
+---
+
+## Production Deployment — Docker Compose (alternative path)
+
+The sections below describe deploying via a single docker-compose
+stack (own Postgres + Redis containers) instead of separate EasyPanel
+apps. Kept for reference / for deploying this project standalone on a
+VPS without EasyPanel, or with a dedicated (not shared) Postgres.
 
 ### Prerequisites
 
@@ -381,7 +491,7 @@ section-8-half/
 ├── .env.production.example      # Prod template
 ├── .dockerignore                # Files to exclude from Docker builds
 ├── docker-compose.yml           # Dev/prod compose (primary)
-├── docker-compose.easypanel.yml # EasyPanel deploy (external shared Postgres)
+├── docker-compose.yml           # Dev compose (own Postgres + Redis)
 ├── Dockerfile.backend           # NestJS multi-stage build
 ├── Dockerfile.frontend          # Next.js multi-stage build
 ├── backend/                     # NestJS application
