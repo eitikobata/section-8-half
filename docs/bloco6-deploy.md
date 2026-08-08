@@ -38,7 +38,7 @@ cp .env.example .env
 docker-compose up -d
 
 # 4. Seed demo data (first run)
-docker-compose exec backend npm run seed -w backend
+docker-compose exec backend npm run seed
 
 # 5. Open browser
 # Frontend:  http://localhost:3001
@@ -63,9 +63,13 @@ docker-compose down -v  # also remove volumes (deletes data)
 
 ### Development Workflow
 
-**Hot reload** is enabled for source files (volumes mounted):
-- Backend changes (src/, prisma/) → auto-rebuild via NestJS development mode
-- Frontend changes (src/, public/) → auto-rebuild via Next.js dev server
+**No hot reload in Docker.** These Dockerfiles do a full build (compile
+TypeScript, `next build`) rather than mounting source — this matches how
+they'll actually run in production and avoids surprises at deploy time.
+For active development with hot reload, run backend/frontend directly on
+your machine (`npm run start:dev` / `npm run dev`) against the
+`postgres`/`redis` containers, and use `docker-compose up` mainly to test
+the full production-like build before deploying.
 
 **Database migrations:**
 ```bash
@@ -160,7 +164,7 @@ docker-compose up -d
 docker-compose logs -f postgres
 
 # Seed demo data (one-time)
-docker-compose exec backend npm run seed -w backend
+docker-compose exec backend npm run seed
 
 # Verify all services are up
 docker-compose ps
@@ -342,7 +346,7 @@ docker-compose restart redis postgres
 ### Demo login not working
 ```bash
 # Re-seed data
-docker-compose exec backend npm run seed -w backend
+docker-compose exec backend npm run seed
 
 # Check demo user
 docker-compose exec postgres psql -U postgres -d section8half \
