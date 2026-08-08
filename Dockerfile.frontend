@@ -3,52 +3,43 @@
 # ============================================================================
 FROM node:20-alpine AS builder
 
-WORKDIR /app
+WORKDIR /app/frontend
 
-# Copy monorepo files
-COPY package*.json ./
-COPY frontend/package*.json frontend/
-COPY frontend/tsconfig.json frontend/
-COPY frontend/tailwind.config.ts frontend/
-COPY frontend/postcss.config.js frontend/
-COPY frontend/next.config.js frontend/
-COPY frontend/src frontend/src
-COPY frontend/public frontend/public
-
-# Install dependencies (includes devDependencies for build)
+# Install deps first (better layer caching)
+COPY frontend/package*.json ./
 RUN npm ci
 
-# Build Next.js
-RUN npm run build -w frontend
+# Copy source and build
+COPY frontend/tsconfig.json frontend/tailwind.config.ts frontend/postcss.config.js frontend/next.config.js ./
+COPY frontend/src ./src
+COPY frontend/public ./public
+
+RUN npm run build
 
 # ============================================================================
 # Runtime stage
 # ============================================================================
 FROM node:20-alpine
 
-WORKDIR /app
+WORKDIR /app/frontend
 
 ENV NODE_ENV=production
 
-# Install dumb-init to handle signals properly
 RUN apk add --no-cache dumb-init
 
-# Copy package files
-COPY package*.json ./
-COPY frontend/package*.json frontend/
+# Install production deps only
+COPY frontend/package*.json ./
+RUN npm ci --omit=dev
 
-# Install dependencies (production only, no devDependencies)
-RUN npm ci --production
+# Copy built output
+COPY --from=builder /app/frontend/.next ./.next
+COPY --from=builder /app/frontend/public ./public
+COPY --from=builder /app/frontend/next.config.js ./
 
-# Copy built application from builder
-COPY --from=builder /app/frontend/.next frontend/.next
-COPY --from=builder /app/frontend/public frontend/public
-
-# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3001', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+  CMD node -e "require('http').get('http://localhost:3001', (r) => {if (r.statusCode >= 500) throw new Error(r.statusCode)})"
 
 EXPOSE 3001
 
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["npm", "start", "-w", "frontend"]
+CMD ["npx", "next", "start", "-p", "3001"]

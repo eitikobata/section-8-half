@@ -1,9 +1,4 @@
-version: '3.9'
-
 services:
-  # =========================================================================
-  # PostgreSQL Database
-  # =========================================================================
   postgres:
     image: postgres:16-alpine
     container_name: section8half-postgres
@@ -24,9 +19,6 @@ services:
     networks:
       - section8half-network
 
-  # =========================================================================
-  # Redis Cache & Streams
-  # =========================================================================
   redis:
     image: redis:7-alpine
     container_name: section8half-redis
@@ -43,15 +35,10 @@ services:
     networks:
       - section8half-network
 
-  # =========================================================================
-  # Backend (NestJS)
-  # =========================================================================
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend
-      args:
-        NODE_ENV: development
     container_name: section8half-backend
     restart: unless-stopped
     depends_on:
@@ -60,34 +47,21 @@ services:
       redis:
         condition: service_healthy
     environment:
-      # App
-      NODE_ENV: development
       PORT: 3000
-      LOG_LEVEL: debug
-      
-      # Database
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-section8half}
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER:-postgres}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      DB_NAME: ${POSTGRES_DB:-section8half}
-      
-      # Redis
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       REDIS_STREAM_KEY: ${REDIS_STREAM_KEY:-events:stream}
-      
-      # Auth (development secrets — change in production)
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret}
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
       JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-7}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
-      
-      # AI
+      DEMO_USER_USERNAME: ${DEMO_USER_USERNAME:-analyst-demo}
+      DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-demo12345}
       AI_PROVIDER: ${AI_PROVIDER:-claude}
       CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
       CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-3-5-sonnet-20241022}
@@ -95,76 +69,41 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
       AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-30000}
       AI_DEBUG: ${AI_DEBUG:-false}
-      
-      # Correlation Engine
       CORRELATION_WINDOW_MS: ${CORRELATION_WINDOW_MS:-60000}
       CORRELATION_EVENT_THRESHOLD: ${CORRELATION_EVENT_THRESHOLD:-3}
       CORRELATION_SEVERITY_THRESHOLD: ${CORRELATION_SEVERITY_THRESHOLD:-50}
       CORRELATION_CONSUMER_GROUP: ${CORRELATION_CONSUMER_GROUP:-correlation-engine}
+      CORRELATION_CONSUMER_NAME: ${CORRELATION_CONSUMER_NAME:-}
       CORRELATION_BLOCK_MS: ${CORRELATION_BLOCK_MS:-5000}
       CORRELATION_BATCH_COUNT: ${CORRELATION_BATCH_COUNT:-10}
-      
-      # Rate limiting
-      THROTTLE_TTL: ${THROTTLE_TTL:-60}
-      THROTTLE_LIMIT: ${THROTTLE_LIMIT:-5}
-      
-      # Demo credentials
-      DEMO_USER_USERNAME: ${DEMO_USER_USERNAME:-analyst-demo}
-      DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-demo12345}
-    
     ports:
       - "3000:3000"
-    
-    volumes:
-      # Mount source for hot reload in development
-      - ./backend/src:/app/backend/src
-      - ./backend/prisma:/app/backend/prisma
-    
     networks:
       - section8half-network
 
-  # =========================================================================
-  # Frontend (Next.js)
-  # =========================================================================
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-      args:
-        NODE_ENV: development
     container_name: section8half-frontend
     restart: unless-stopped
     depends_on:
       - backend
     environment:
-      NODE_ENV: development
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000}
       NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:3000}
       NEXT_PUBLIC_INCIDENT_DECISION_TIMEOUT_MS: ${NEXT_PUBLIC_INCIDENT_DECISION_TIMEOUT_MS:-120000}
-    
     ports:
       - "3001:3001"
-    
-    volumes:
-      # Mount source for hot reload in development
-      - ./frontend/src:/app/frontend/src
-      - ./frontend/public:/app/frontend/public
-    
     networks:
       - section8half-network
 
-# ============================================================================
-# Volumes
-# ============================================================================
 volumes:
   section8half_postgres_data:
     driver: local
   section8half_redis_data:
     driver: local
 
-# ============================================================================
-# Networks
-# ============================================================================
 networks:
   section8half-network:
     driver: bridge
