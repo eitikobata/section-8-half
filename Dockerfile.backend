@@ -1,0 +1,57 @@
+# ============================================================================
+# Build stage
+# ============================================================================
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy monorepo files
+COPY package*.json ./
+COPY backend/package*.json backend/
+COPY backend/tsconfig.json backend/
+COPY backend/src backend/src
+COPY backend/prisma backend/prisma
+
+# Install dependencies (production)
+RUN npm ci
+
+# Build backend
+RUN npm run build -w backend
+
+# ============================================================================
+# Runtime stage
+# ============================================================================
+FROM node:20-alpine
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Install dumb-init to handle signals properly
+RUN apk add --no-cache dumb-init
+
+# Copy package files
+COPY package*.json ./
+COPY backend/package*.json backend/
+
+# Install dependencies (production only, no devDependencies)
+RUN npm ci --production
+
+# Copy built application from builder
+COPY --from=builder /app/backend/dist backend/dist
+COPY --from=builder /app/backend/prisma backend/prisma
+
+# Copy seed file (if needed at runtime)
+COPY backend/prisma/seed.ts backend/prisma/
+
+# Prisma generate (required even in production to generate client)
+RUN npx prisma generate --schema=backend/prisma/schema.prisma
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
+EXPOSE 3000
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "backend/dist/main.js"]
