@@ -40,6 +40,11 @@ COPY --from=builder /app/backend/dist ./dist
 COPY --from=builder /app/backend/prisma ./prisma
 COPY --from=builder /app/backend/node_modules/.prisma ./node_modules/.prisma
 
+# seed.ts imports from ../src/config directly and runs via ts-node
+# (not compiled), so the TS source + tsconfig need to be present too.
+COPY --from=builder /app/backend/src ./src
+COPY --from=builder /app/backend/tsconfig.json ./
+
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000', (r) => {if (r.statusCode >= 500) throw new Error(r.statusCode)})"
 
