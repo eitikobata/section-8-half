@@ -14,8 +14,6 @@ RUN npm ci
 COPY backend/tsconfig.json ./
 COPY backend/src ./src
 
-RUN npm run build
-
 # ============================================================================
 # Runtime stage
 # ============================================================================
@@ -30,8 +28,9 @@ RUN apk add --no-cache dumb-init
 COPY backend/package*.json ./
 RUN npm ci --omit=dev
 
-# Runs via ts-node (see package.json "simulator" script), so the TS
-# source + tsconfig need to be present, not just the compiled dist/.
+# Runs via ts-node (see package.json "simulator" script) directly from
+# TypeScript source -- no `nest build`/dist/ involved, and no Prisma
+# client needed either. sensor-simulator.ts only imports axios.
 COPY --from=builder /app/backend/src ./src
 COPY --from=builder /app/backend/tsconfig.json ./
 
