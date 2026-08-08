@@ -3,6 +3,8 @@
 # ============================================================================
 FROM node:20-alpine AS builder
 
+RUN apk add --no-cache openssl
+
 WORKDIR /app/backend
 
 # Install deps first (better layer caching)
@@ -27,7 +29,7 @@ WORKDIR /app/backend
 
 ENV NODE_ENV=production
 
-RUN apk add --no-cache dumb-init
+RUN apk add --no-cache dumb-init openssl
 
 # Install production deps only
 COPY backend/package*.json ./
